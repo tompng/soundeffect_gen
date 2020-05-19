@@ -81,9 +81,11 @@ let hashdata
 function applyHash() {
   try {
     const data = location.hash.substr(1).split('/').map(s => s.split('_').map(v => Number(v)))
-    data.forEach(([start, length, pitch, band, peek, volume]) => {
-      const note = new Note(start, length, pitch, band, peek, volume)
-      notes.push(note)
+    data.forEach((args) => {
+      if (args.length === 6) {
+        const note = new Note(...args)
+        notes.push(note)
+      }
     })
   } catch(e) {}
 }
