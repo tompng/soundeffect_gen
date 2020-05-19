@@ -19,44 +19,48 @@ function waveToDataURL(wave){
     }).join('')
   ].join('')
 }
-audio=new Audio()
-const waveData=new Array(44100 * 5).fill(0)
-;[
+function createWaveFromParameters(parameters) {
+  const waveData=new Array(44100 * 5).fill(0)
+  parameters.forEach(({ w, hz, fadein, fadeout, delay, volume }) => {
+    const th = 2 * Math.PI * hz / 44100
+    const ex = Math.exp(-w * hz / 44100 / 2)
+    const ac = ex * Math.cos(th)
+    const as = ex * Math.sin(th)
+    const bc = ex * ex * Math.cos(th)
+    const bs = ex * ex * Math.sin(th)
+    const scale = Math.sqrt(hz * w) * volume
+    let ar = 0, ai = 0
+    let br = 0, bi = 0
+    let sum2 = 0
+    for(i = delay - 44100; i < waveData.length; i++) {
+      const r = 2 * Math.random() - 1
+      let tmp
+      tmp = ar
+      ar = tmp * ac - ai * as + r
+      ai = ai * ac + tmp * as
+      tmp = br
+      br = tmp * bc - bi * bs + r
+      bi = bi * bc + tmp * bs
+      const j = i - delay
+      if (j < 0) continue
+      waveData[i] += (fadein ? 1 - Math.exp(-j / fadein) : 1) * Math.exp(-j / fadeout) * (br - ar) * scale
+    }
+    console.log(w, hz, sum2)
+  })
+  let max = 0;
+  waveData.forEach(v => { max = Math.max(max, Math.abs(v)) })
+  waveData.forEach((_, i) => waveData[i] /= max)
+  return waveData
+}
+
+const waveData = createWaveFromParameters([
   { w: 2 / 24, hz: 441 * 1, fadein: 400, fadeout: 10000, delay: 0, volume: 1 },
   { w: 4 / 24, hz: 441 * 1, fadein: 400, fadeout: 10000, delay: 0, volume: 1 },
-].forEach(({ w, hz, fadein, fadeout, delay, volume }) => {
-  const th = 2 * Math.PI * hz / 44100
-  const ex = Math.exp(-w * hz / 44100 / 2)
-  const ac = ex * Math.cos(th)
-  const as = ex * Math.sin(th)
-  const bc = ex * ex * Math.cos(th)
-  const bs = ex * ex * Math.sin(th)
-  const scale = Math.sqrt(hz * w) * volume
-  let ar = 0, ai = 0
-  let br = 0, bi = 0
-  let sum2 = 0
-  for(i = delay - 44100; i < waveData.length; i++) {
-    const r = 2 * Math.random() - 1
-    let tmp
-    tmp = ar
-    ar = tmp * ac - ai * as + r
-    ai = ai * ac + tmp * as
-    tmp = br
-    br = tmp * bc - bi * bs + r
-    bi = bi * bc + tmp * bs
-    const j = i - delay
-    if (j < 0) continue
-    waveData[i] += (1 - Math.exp(-j / fadein)) * Math.exp(-j / fadeout) * (br - ar) * scale
-  }
-  console.log(w, hz, sum2)
-})
-let max = 0;
-waveData.forEach(v => { max = Math.max(max, Math.abs(v)) })
-waveData.forEach((_, i) => waveData[i] /= max)
-console.log(max)
-audio.src = waveToDataURL(waveData)
+])
+// audio = new Audio()
+// audio.src = waveToDataURL(waveData)
 // audio.play()
-document.onclick = () => {
-  audio.currentTime = 0
-  // audio.play()
-}
+// document.onclick = () => {
+//   audio.currentTime = 0
+//   audio.play()
+// }

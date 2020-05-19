@@ -64,6 +64,21 @@ const YSIZE = 20
 const MAX_PITCH = 48
 let notes = []
 let focusNote = null
+
+function createAudioSrc(parameters) {
+  const waveData = createWaveFromParameters(
+    parameters.map(({ start, length, pitch, band, peek }) => ({
+      w: band / 24 || 0.001,
+      hz: 441 * Math.pow(2, pitch / 12),
+      fadein: length * 441 * peek,
+      fadeout: length * 441,
+      delay: start * 441,
+      volume: 1
+    }))
+  )
+  return waveToDataURL(waveData)
+}
+
 class Note {
   constructor(start, length, pitch, band = 1) {
     this.start = start
@@ -79,6 +94,22 @@ class Note {
     this.peekDom.className = 'peek'
     this.dom.appendChild(this.peekDom)
     this.prepareControlPoints()
+    this.audio = new Audio()
+  }
+  startPlay() {
+    const play = () => {
+      this.audio.src = createAudioSrc([{ start: 0, length: this.length, pitch: this.pitch, band: this.band, peek: this.peek }])
+      this.audio.play()
+    }
+    play()
+    if (this.playTimer) clearInterval(this.playTimer)
+    this.playTimer = setInterval(() => {
+      play()
+    }, this.length * 100 + 200)
+  }
+  stopPlay() {
+    if (this.playTimer) clearInterval(this.playTimer)
+    this.playTimer = null
   }
   prepareControlPoints() {
     const icon = iconText => {
@@ -122,6 +153,7 @@ class Note {
     }
     ;[up, down, start, end, peek, this.dom].forEach(el => {
       el.onmousedown = e => {
+        this.startPlay()
         e.preventDefault()
         if (focusNote) focusNote.hideControls()
         focusNote = this
@@ -135,6 +167,7 @@ class Note {
         }
         const mousemove = e => el.moved(state, e.pageX - x, e.pageY - y)
         const mouseup = () => {
+          this.stopPlay()
           document.removeEventListener('mousemove', mousemove)
           document.removeEventListener('mouseup', mouseup)
         }
@@ -180,10 +213,15 @@ class Note {
 }
 </script>
 <body>
-<div class="editor">
-</div>
+<button onclick="playAll()">play</button>
+<div class="editor"></div>
 <script>
   const editorElement = document.querySelector('.editor')
+  const audio = new Audio()
+  function playAll() {
+    audio.src = createAudioSrc(notes)
+    audio.play()
+  }
   editorElement.onmousedown = e => {
     if (e.target !== editorElement) return
     if (focusNote) {
