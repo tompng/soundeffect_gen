@@ -31,7 +31,6 @@ function createWaveFromParameters(parameters) {
     const scale = Math.sqrt(hz * w) * volume
     let ar = 0, ai = 0
     let br = 0, bi = 0
-    let sum2 = 0
     for(i = delay - 44100; i < waveData.length; i++) {
       const r = 2 * Math.random() - 1
       let tmp
@@ -45,7 +44,6 @@ function createWaveFromParameters(parameters) {
       if (j < 0) continue
       waveData[i] += (fadein ? 1 - Math.exp(-j / fadein) : 1) * Math.exp(-j / fadeout) * (br - ar) * scale
     }
-    console.log(w, hz, sum2)
   })
   let max = 0;
   waveData.forEach(v => { max = Math.max(max, Math.abs(v)) })

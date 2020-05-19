@@ -28,6 +28,12 @@
   background: repeating-linear-gradient(90deg, #ddf 0, #ddf 1px, transparent 1px, transparent 39px, #ddf 39px, #ddf 40px),
   repeating-linear-gradient(0deg, #ddf 0, #ddf 1px, transparent 1px, transparent 19px, #ddf 19px, #ddf 20px)
 }
+.note.focus {
+  background: #444;
+}
+.note-range.focus {
+  background: rgba(0, 0, 255, 0.2)
+}
 .note {
   position: absolute;
   border-radius: 2px;
@@ -51,29 +57,36 @@
   height: 100%;
   box-shadow: 0 0 4px black;
 }
+.note .volume {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  font-size: 8px;
+  color: silver;
+}
 .note-range {
   position: absolute;
   border-radius: 2px;
-  background: red;
-  opacity: 0.2;
+  background: rgba(255, 0, 0, 0.2);
 }
 </style>
 <script>
 const XSIZE = 40
 const YSIZE = 20
-const MAX_PITCH = 48
+const MAX_PITCH = 69 + 36
+const MIN_PITCH = 69 - 36
 let notes = []
 let focusNote = null
 
 function createAudioSrc(parameters) {
   const waveData = createWaveFromParameters(
-    parameters.map(({ start, length, pitch, band, peek }) => ({
+    parameters.map(({ start, length, pitch, band, peek, volume }) => ({
       w: band / 24 || 0.001,
-      hz: 441 * Math.pow(2, pitch / 12),
+      hz: 441 * Math.pow(2, (pitch - 69) / 12),
       fadein: length * 441 * peek,
       fadeout: length * 441,
       delay: start * 441,
-      volume: 1
+      volume
     }))
   )
   return waveToDataURL(waveData)
@@ -86,6 +99,7 @@ class Note {
     this.pitch = pitch
     this.band = band
     this.peek = 0.5
+    this.volume = 1
     this.dom = document.createElement('div')
     this.dom.className = 'note'
     this.rangeDom = document.createElement('div')
@@ -93,12 +107,20 @@ class Note {
     this.peekDom = document.createElement('div')
     this.peekDom.className = 'peek'
     this.dom.appendChild(this.peekDom)
+    this.volumeDom = document.createElement('div')
+    this.volumeDom.className = 'volume'
+    this.dom.appendChild(this.volumeDom)
     this.prepareControlPoints()
     this.audio = new Audio()
+    this.audio.volume = 0.2
+  }
+  addVolume(v) {
+    this.volume = Math.min(1, Math.max(0, Math.round(100 * (this.volume + v)) / 100))
+    this.updatePosition()
   }
   startPlay() {
     const play = () => {
-      this.audio.src = createAudioSrc([{ start: 0, length: this.length, pitch: this.pitch, band: this.band, peek: this.peek }])
+      this.audio.src = createAudioSrc([{ start: 0, length: this.length, pitch: this.pitch, band: this.band, peek: this.peek, volume: this.volume }])
       this.audio.play()
     }
     play()
@@ -131,11 +153,11 @@ class Note {
       this.updatePosition()
     }
     up.moved = (state, x, y) => {
-      this.band = Math.max(0, state.band - Math.round(y / YSIZE))
+      this.band = Math.min(12, Math.max(0, state.band - Math.round(y / YSIZE)))
       this.updatePosition()
     }
     down.moved = (state, x, y) => {
-      this.band = Math.max(0, state.band + Math.round(y / YSIZE))
+      this.band = Math.min(12, Math.max(0, state.band + Math.round(y / YSIZE)))
       this.updatePosition()
     }
     end.moved = (state, x, y) => {
@@ -143,7 +165,7 @@ class Note {
       this.updatePosition()
     }
     peek.moved = (state, x, y) => {
-      this.peek = Math.min(1, Math.max(0, state.peek + x / XSIZE / this.length))
+      this.peek = Math.min(1, Math.max(0, Math.round(1000 * (state.peek + x / XSIZE / this.length)) / 1000))
       this.updatePosition()
     }
     this.dom.moved = (state, x, y) => {
@@ -193,11 +215,19 @@ class Note {
     peek.style.left = (this.start + this.peek * this.length) * XSIZE
     start.style.top = end.style.top = peek.style.top = (MAX_PITCH - this.pitch + 0.5) * YSIZE
     this.peekDom.style.left = `${this.peek * 100}%`
+    this.volumeDom.textContent = Math.round(this.volume * 100) + '%'
+    this.rangeDom.style.opacity = this.dom.style.opacity = 0.5 + 0.5 * this.volume
   }
   hideControls() {
+    this.rangeDom.classList.remove('focus')
+    this.dom.classList.remove('focus')
+    this.volumeDom.style.display = 'none'
     for (const el of Object.values(this.controlPoints)) el.style.display = 'none'
   }
   showControls() {
+    this.rangeDom.classList.add('focus')
+    this.dom.classList.add('focus')
+    this.volumeDom.style.display = ''
     for (const el of Object.values(this.controlPoints)) el.style.display = ''
   }
   appendTo(dom) {
@@ -218,6 +248,7 @@ class Note {
 <script>
   const editorElement = document.querySelector('.editor')
   const audio = new Audio()
+  audio.volume = 0.4
   function playAll() {
     audio.src = createAudioSrc(notes)
     audio.play()
@@ -228,7 +259,7 @@ class Note {
       focusNote.hideControls()
       focusNote = null
     } else {
-      const note = new Note(Math.round(e.offsetX / XSIZE), 2, MAX_PITCH - Math.round(e.offsetY / YSIZE), 1)
+      const note = new Note(Math.floor(e.offsetX / XSIZE), 2, MAX_PITCH - Math.floor(e.offsetY / YSIZE), 1)
       note.appendTo(editorElement)
       note.updatePosition()
       notes.push(note)
@@ -236,11 +267,35 @@ class Note {
       note.showControls()
     }
   }
+  let lastPlusMinus = null
   document.body.onkeydown = e => {
-    if (e.keyCode == 8) {
+    if (e.key === 'Backspace') {
       focusNote.remove()
       notes = notes.filter(n => n != focusNote)
       focusNote = null
     }
+    if (lastPlusMinus && (lastPlusMinus.note !== focusNote || lastPlusMinus.time < new Date() - 100)) lastPlusMinus = null
+    if (e.key === '+') {
+      if (lastPlusMinus) {
+        lastPlusMinus.value = Math.max(lastPlusMinus.value * 1.2, 0.01)
+      } else {
+        lastPlusMinus = { value: 0.01, note: focusNote }
+      }
+      lastPlusMinus.time = new Date()
+      focusNote.addVolume(lastPlusMinus.value)
+    } else if (e.key === '-')  {
+      if (lastPlusMinus) {
+        lastPlusMinus.value = Math.min(lastPlusMinus.value * 1.2, -0.01)
+      } else {
+        lastPlusMinus = { value: -0.01, note: focusNote }
+      }
+      focusNote.addVolume(lastPlusMinus.value)
+      lastPlusMinus.time = new Date()
+    } else {
+      lastPlusMinus = null
+    }
+  }
+  document.body.onkeyup = e => {
+    lastPlusMinus = null
   }
 </script>
