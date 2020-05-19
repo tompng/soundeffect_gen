@@ -34,6 +34,22 @@
   background: gray;
   z-index: 2;
   box-shadow: 0 0 2px black inset;
+  overflow: hidden;
+}
+.note .peek {
+  position: absolute;
+  width: 0px;
+  height: 100%;
+}
+.note .peek:before {
+  position: absolute;
+  content: '';
+  background: black;
+  width: 2px;
+  left: -1px;
+  top: 0;
+  height: 100%;
+  box-shadow: 0 0 4px black;
 }
 .note-range {
   position: absolute;
@@ -59,9 +75,9 @@ class Note {
     this.dom.className = 'note'
     this.rangeDom = document.createElement('div')
     this.rangeDom.className = 'note-range'
-    this.dom.innerHTML = `
-      <div></div>
-    `
+    this.peekDom = document.createElement('div')
+    this.peekDom.className = 'peek'
+    this.dom.appendChild(this.peekDom)
     this.prepareControlPoints()
   }
   prepareControlPoints() {
@@ -143,6 +159,7 @@ class Note {
     start.style.left = this.start * XSIZE - offset
     peek.style.left = (this.start + this.peek * this.length) * XSIZE
     start.style.top = end.style.top = peek.style.top = (MAX_PITCH - this.pitch + 0.5) * YSIZE
+    this.peekDom.style.left = `${this.peek * 100}%`
   }
   hideControls() {
     for (const el of Object.values(this.controlPoints)) el.style.display = 'none'
