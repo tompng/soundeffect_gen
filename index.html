@@ -1,0 +1,191 @@
+<script src="wave.js"></script>
+<style>
+.control {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.control span {
+  position: absolute;
+  left: -10px;
+  top: -10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: 0 0 2px black;
+  background: white;
+  opacity: 0.5;
+  text-align: center;
+  font-size: 16px;
+  line-height: 20px;
+  z-index: 3
+}
+.editor{
+  width: 800px;
+  height: 800px;
+  position: relative;
+  border: 2px solid gray;
+  background: repeating-linear-gradient(90deg, #ddf 0, #ddf 1px, transparent 1px, transparent 39px, #ddf 39px, #ddf 40px),
+  repeating-linear-gradient(0deg, #ddf 0, #ddf 1px, transparent 1px, transparent 19px, #ddf 19px, #ddf 20px)
+}
+.note {
+  position: absolute;
+  border-radius: 2px;
+  background: gray;
+  z-index: 2;
+  box-shadow: 0 0 2px black inset;
+}
+.note-range {
+  position: absolute;
+  border-radius: 2px;
+  background: red;
+  opacity: 0.2;
+}
+</style>
+<script>
+const XSIZE = 40
+const YSIZE = 20
+const MAX_PITCH = 48
+let notes = []
+let focusNote = null
+class Note {
+  constructor(start, length, pitch, band = 1) {
+    this.start = start
+    this.length = length
+    this.pitch = pitch
+    this.band = band
+    this.peek = 0.5
+    this.dom = document.createElement('div')
+    this.dom.className = 'note'
+    this.rangeDom = document.createElement('div')
+    this.rangeDom.className = 'note-range'
+    this.dom.innerHTML = `
+      <div></div>
+    `
+    this.prepareControlPoints()
+  }
+  prepareControlPoints() {
+    const icon = iconText => {
+      const el = document.createElement('div')
+      el.className = 'control'
+      el.innerHTML = `<span>${iconText}</span>`
+      return el
+    }
+    const start = icon('←')
+    const up = icon('↑')
+    const down = icon('↓')
+    const end = icon('→')
+    const peek = icon('・')
+    this.controlPoints = { up, down, start, end, peek }
+    start.moved = (state, x, y) => {
+      const diff = Math.min(state.start + state.length - 1, Math.max(0, state.start + Math.round(x / XSIZE))) - this.start
+      this.start += diff
+      this.length -= diff
+      this.updatePosition()
+    }
+    up.moved = (state, x, y) => {
+      this.band = Math.max(0, state.band - Math.round(y / YSIZE))
+      this.updatePosition()
+    }
+    down.moved = (state, x, y) => {
+      this.band = Math.max(0, state.band + Math.round(y / YSIZE))
+      this.updatePosition()
+    }
+    end.moved = (state, x, y) => {
+      this.length = Math.max(1, state.length + Math.round(x / XSIZE))
+      this.updatePosition()
+    }
+    peek.moved = (state, x, y) => {
+      this.peek = Math.min(1, Math.max(0, state.peek + x / XSIZE / this.length))
+      this.updatePosition()
+    }
+    this.dom.moved = (state, x, y) => {
+      this.start = Math.max(0, state.start + Math.round(x / XSIZE))
+      this.pitch = Math.min(MAX_PITCH, state.pitch - Math.round(y / YSIZE))
+      this.updatePosition()
+    }
+    ;[up, down, start, end, peek, this.dom].forEach(el => {
+      el.onmousedown = e => {
+        e.preventDefault()
+        if (focusNote) focusNote.hideControls()
+        focusNote = this
+        this.showControls()
+        const x = e.pageX
+        const y = e.pageY
+        const state = {
+          start: this.start, length: this.length,
+          pitch: this.pitch, band: this.band,
+          peek: this.peek
+        }
+        const mousemove = e => el.moved(state, e.pageX - x, e.pageY - y)
+        const mouseup = () => {
+          document.removeEventListener('mousemove', mousemove)
+          document.removeEventListener('mouseup', mouseup)
+        }
+        document.addEventListener('mousemove', mousemove)
+        document.addEventListener('mouseup', mouseup)
+      }
+    })
+  }
+  updatePosition() {
+    const offset = 10
+    this.rangeDom.style.left = this.dom.style.left = this.start * XSIZE
+    this.dom.style.top = (MAX_PITCH - this.pitch) * YSIZE
+    this.rangeDom.style.width = this.dom.style.width = this.length * XSIZE
+    this.dom.style.height = YSIZE
+    this.rangeDom.style.top = (MAX_PITCH - this.pitch - this.band) * YSIZE
+    this.rangeDom.style.height = (1 + 2 * this.band) * YSIZE
+    const { up, down, start, end, peek } = this.controlPoints
+    up.style.left = down.style.left = (this.start + this.length / 2) * XSIZE
+    up.style.top = (MAX_PITCH - this.pitch - this.band) * YSIZE - offset
+    down.style.top = (MAX_PITCH - this.pitch + this.band + 1) * YSIZE + offset
+    end.style.left = (this.start + this.length) * XSIZE + offset
+    start.style.left = this.start * XSIZE - offset
+    peek.style.left = (this.start + this.peek * this.length) * XSIZE
+    start.style.top = end.style.top = peek.style.top = (MAX_PITCH - this.pitch + 0.5) * YSIZE
+  }
+  hideControls() {
+    for (const el of Object.values(this.controlPoints)) el.style.display = 'none'
+  }
+  showControls() {
+    for (const el of Object.values(this.controlPoints)) el.style.display = ''
+  }
+  appendTo(dom) {
+    dom.appendChild(this.rangeDom)
+    dom.appendChild(this.dom)
+    for (const el of Object.values(this.controlPoints)) dom.appendChild(el)
+  }
+  remove() {
+    this.dom.remove()
+    this.rangeDom.remove()
+    for (const el of Object.values(this.controlPoints)) el.remove()
+  }
+}
+</script>
+<body>
+<div class="editor">
+</div>
+<script>
+  const editorElement = document.querySelector('.editor')
+  editorElement.onmousedown = e => {
+    if (e.target !== editorElement) return
+    if (focusNote) {
+      focusNote.hideControls()
+      focusNote = null
+    } else {
+      const note = new Note(Math.round(e.offsetX / XSIZE), 2, MAX_PITCH - Math.round(e.offsetY / YSIZE), 1)
+      note.appendTo(editorElement)
+      note.updatePosition()
+      notes.push(note)
+      focusNote = note
+      note.showControls()
+    }
+  }
+  document.body.onkeydown = e => {
+    if (e.keyCode == 8) {
+      focusNote.remove()
+      notes = notes.filter(n => n != focusNote)
+      focusNote = null
+    }
+  }
+</script>
