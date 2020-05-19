@@ -77,7 +77,28 @@ const MAX_PITCH = 69 + 36
 const MIN_PITCH = 69 - 36
 let notes = []
 let focusNote = null
+let hashdata
+function applyHash() {
+  try {
+    const data = location.hash.substr(1).split('/').map(s => s.split('_').map(v => Number(v)))
+    data.forEach(([start, length, pitch, band, peek, volume]) => {
+      const note = new Note(start, length, pitch, band, peek, volume)
+      notes.push(note)
+    })
+  } catch(e) {}
+}
 
+function updateHash() {
+  const data = notes.map(note => [
+    note.start,
+    note.length,
+    note.pitch,
+    note.band,
+    note.peek,
+    note.volume
+  ].join('_')).join('/')
+  location.hash = data
+}
 function createAudioSrc(parameters) {
   const waveData = createWaveFromParameters(
     parameters.map(({ start, length, pitch, band, peek, volume }) => ({
@@ -93,13 +114,13 @@ function createAudioSrc(parameters) {
 }
 
 class Note {
-  constructor(start, length, pitch, band = 1) {
+  constructor(start, length, pitch, band = 1, peek = 0.5, volume = 0.5) {
     this.start = start
     this.length = length
     this.pitch = pitch
     this.band = band
-    this.peek = 0.5
-    this.volume = 1
+    this.peek = peek
+    this.volume = volume
     this.dom = document.createElement('div')
     this.dom.className = 'note'
     this.rangeDom = document.createElement('div')
@@ -199,6 +220,7 @@ class Note {
     })
   }
   updatePosition() {
+    updateHash()
     const offset = 10
     this.rangeDom.style.left = this.dom.style.left = this.start * XSIZE
     this.dom.style.top = (MAX_PITCH - this.pitch) * YSIZE
@@ -248,6 +270,12 @@ class Note {
 <script>
   const editorElement = document.querySelector('.editor')
   const audio = new Audio()
+  applyHash()
+  notes.forEach(note => {
+    note.appendTo(editorElement)
+    note.hideControls()
+    note.updatePosition()
+  })
   audio.volume = 0.4
   function playAll() {
     audio.src = createAudioSrc(notes)
@@ -265,6 +293,7 @@ class Note {
       notes.push(note)
       focusNote = note
       note.showControls()
+      updateHash()
     }
   }
   let lastPlusMinus = null
@@ -273,6 +302,7 @@ class Note {
       focusNote.remove()
       notes = notes.filter(n => n != focusNote)
       focusNote = null
+      updateHash()
     }
     if (lastPlusMinus && (lastPlusMinus.note !== focusNote || lastPlusMinus.time < new Date() - 100)) lastPlusMinus = null
     if (e.key === '+') {
