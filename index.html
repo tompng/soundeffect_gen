@@ -26,7 +26,14 @@
   position: relative;
   border: 2px solid gray;
   background: repeating-linear-gradient(90deg, #ddf 0, #ddf 1px, transparent 1px, transparent 39px, #ddf 39px, #ddf 40px),
-  repeating-linear-gradient(0deg, #ddf 0, #ddf 1px, transparent 1px, transparent 19px, #ddf 19px, #ddf 20px)
+  repeating-linear-gradient(0deg, #ddf 0, #ddf 1px, transparent 1px, transparent 19px, #ddf 19px, #ddf 20px);
+  overflow: hidden;
+}
+.note-preview {
+  position: absolute;
+  background: blue;
+  opacity: 0.2;
+  z-index: 1;
 }
 .note.focus {
   background: #444;
@@ -222,6 +229,7 @@ class Note {
         e.preventDefault()
         if (focusNote) focusNote.hideControls()
         focusNote = this
+        notePreview.style.display = 'none'
         this.showControls()
         const x = e.pageX
         const y = e.pageY
@@ -287,7 +295,7 @@ class Note {
 </script>
 <body>
 <button onclick="playAll()">play</button>
-<div class="editor"></div>
+<div class="editor"><div class='note-preview'></div></div>
 <script>
   const editorElement = document.querySelector('.editor')
   const audio = new Audio()
@@ -303,10 +311,11 @@ class Note {
     audio.play()
   }
   editorElement.onmousedown = e => {
-    if (e.target !== editorElement && e.target.className !== 'note-range') return
+    if (e.target !== editorElement && e.target.className !== 'note-range' && e.target.className !== 'note-preview') return
     if (focusNote) {
       focusNote.hideControls()
       focusNote = null
+      notePreview.style.display = ''
     } else {
       const offsetX = editorElement.offsetLeft
       const offsetY = editorElement.offsetTop
@@ -314,11 +323,12 @@ class Note {
       const pitch = MAX_PITCH - Math.floor((e.pageY - offsetY) / YSIZE)
       const note = new Note(time1, 1, pitch, 0)
       note.appendTo(editorElement)
-      note.hideControls()
+      note.showControls()
       note.updatePosition()
       note.startPlay()
       notes.push(note)
       focusNote = note
+      notePreview.style.display = 'none'
       const pageXWas = e.pageX
       const pageYWas = e.pageY
       const mousemove = e => {
@@ -344,6 +354,17 @@ class Note {
     }
   }
   let lastPlusMinus = null
+  const notePreview = document.querySelector('.note-preview')
+  notePreview.style.width = XSIZE
+  notePreview.style.height = YSIZE
+  document.body.onmousemove = e => {
+    const offsetX = editorElement.offsetLeft
+    const offsetY = editorElement.offsetTop
+    const time = Math.floor((e.pageX - offsetX) / XSIZE)
+    const pitch = MAX_PITCH - Math.floor((e.pageY - offsetY) / YSIZE)
+    notePreview.style.left = time * XSIZE
+    notePreview.style.top = (MAX_PITCH - pitch) * YSIZE
+  }
   document.body.onkeydown = e => {
     if (e.key === ' ') {
       e.preventDefault()
@@ -353,6 +374,7 @@ class Note {
       focusNote.remove()
       notes = notes.filter(n => n != focusNote)
       focusNote = null
+      notePreview.style.display = ''
       updateHash()
     }
     if (lastPlusMinus && (lastPlusMinus.note !== focusNote || lastPlusMinus.time < new Date() - 100)) lastPlusMinus = null
