@@ -73,6 +73,7 @@
 <script>
 const XSIZE = 40
 const YSIZE = 20
+const BandStep = 4
 const MAX_PITCH = 69 + 36
 const MIN_PITCH = 69 - 36
 let notes = []
@@ -143,18 +144,26 @@ class Note {
   }
   startPlay() {
     const play = () => {
-      this.audio.src = createAudioSrc([{ start: 0, length: this.length, pitch: this.pitch, band: this.band, peek: this.peek, volume: this.volume }])
+      const params = [{ start: 0, length: this.length, pitch: this.pitch, band: this.band, peek: this.peek, volume: this.volume }]
+      const paramsJSON = JSON.stringify(params)
+      if (this.audio.paramsJSON !== paramsJSON) {
+        this.audio.src = createAudioSrc(params)
+        this.audio.paramsJSON = paramsJSON
+      }
+      this.audio.currentTime = 0
+      if (this.playTimer) clearTimeout(this.playTimer)
+      this.playTimer = setTimeout(play, params.length * 200 + 200)
       this.audio.play()
     }
     play()
-    if (this.playTimer) clearInterval(this.playTimer)
-    this.playTimer = setInterval(() => {
-      play()
-    }, this.length * 100 + 200)
   }
   stopPlay() {
     if (this.playTimer) clearInterval(this.playTimer)
     this.playTimer = null
+  }
+  updated() {
+    updateHash()
+    this.updatePosition()
   }
   prepareControlPoints() {
     const icon = iconText => {
@@ -173,28 +182,39 @@ class Note {
       const diff = Math.min(state.start + state.length - 1, Math.max(0, state.start + Math.round(x / XSIZE))) - this.start
       this.start += diff
       this.length -= diff
-      this.updatePosition()
+      if (diff) this.updated()
     }
     up.moved = (state, x, y) => {
-      this.band = Math.min(12, Math.max(0, state.band - Math.round(y / YSIZE)))
-      this.updatePosition()
+      const band = Math.min(48, Math.max(0, state.band - Math.round(BandStep * y / YSIZE)))
+      if (this.band === band) return
+      this.band = band
+      this.updated()
     }
     down.moved = (state, x, y) => {
-      this.band = Math.min(12, Math.max(0, state.band + Math.round(y / YSIZE)))
-      this.updatePosition()
+      const band = Math.min(48, Math.max(0, state.band + Math.round(BandStep * y / YSIZE)))
+      if (this.band === band) return
+      this.band = band
+      this.updated()
     }
     end.moved = (state, x, y) => {
-      this.length = Math.max(1, state.length + Math.round(x / XSIZE))
-      this.updatePosition()
+      const length = Math.max(1, state.length + Math.round(x / XSIZE))
+      if (this.length === length) return
+      this.length = length
+      this.updated()
     }
     peek.moved = (state, x, y) => {
-      this.peek = Math.min(1, Math.max(0, Math.round(1000 * (state.peek + x / XSIZE / this.length)) / 1000))
-      this.updatePosition()
+      const peek = Math.min(1, Math.max(0, Math.round(1000 * (state.peek + x / XSIZE / this.length)) / 1000))
+      if (this.peek === peek) return
+      this.peek = peek
+      this.updated()
     }
     this.dom.moved = (state, x, y) => {
-      this.start = Math.max(0, state.start + Math.round(x / XSIZE))
-      this.pitch = Math.min(MAX_PITCH, state.pitch - Math.round(y / YSIZE))
-      this.updatePosition()
+      const start = Math.max(0, state.start + Math.round(x / XSIZE))
+      const pitch = Math.min(MAX_PITCH, state.pitch - Math.round(y / YSIZE))
+      if (this.start === start && this.pitch === pitch) return
+      this.start = start
+      this.pitch = pitch
+      this.updated()
     }
     ;[up, down, start, end, peek, this.dom].forEach(el => {
       el.onmousedown = e => {
@@ -222,18 +242,17 @@ class Note {
     })
   }
   updatePosition() {
-    updateHash()
     const offset = 10
     this.rangeDom.style.left = this.dom.style.left = this.start * XSIZE
     this.dom.style.top = (MAX_PITCH - this.pitch) * YSIZE
     this.rangeDom.style.width = this.dom.style.width = this.length * XSIZE
     this.dom.style.height = YSIZE
-    this.rangeDom.style.top = (MAX_PITCH - this.pitch - this.band) * YSIZE
-    this.rangeDom.style.height = (1 + 2 * this.band) * YSIZE
+    this.rangeDom.style.top = (MAX_PITCH - this.pitch - this.band / BandStep) * YSIZE
+    this.rangeDom.style.height = (1 + 2 * this.band / BandStep) * YSIZE
     const { up, down, start, end, peek } = this.controlPoints
     up.style.left = down.style.left = (this.start + this.length / 2) * XSIZE
-    up.style.top = (MAX_PITCH - this.pitch - this.band) * YSIZE - offset
-    down.style.top = (MAX_PITCH - this.pitch + this.band + 1) * YSIZE + offset
+    up.style.top = (MAX_PITCH - this.pitch - this.band / BandStep) * YSIZE - offset
+    down.style.top = (MAX_PITCH - this.pitch + this.band / BandStep + 1) * YSIZE + offset
     end.style.left = (this.start + this.length) * XSIZE + offset
     start.style.left = this.start * XSIZE - offset
     peek.style.left = (this.start + this.peek * this.length) * XSIZE
@@ -300,6 +319,10 @@ class Note {
   }
   let lastPlusMinus = null
   document.body.onkeydown = e => {
+    if (e.key === ' ') {
+      e.preventDefault()
+      playAll()
+    }
     if (e.key === 'Backspace') {
       focusNote.remove()
       notes = notes.filter(n => n != focusNote)
@@ -324,6 +347,7 @@ class Note {
       focusNote.addVolume(lastPlusMinus.value)
       lastPlusMinus.time = new Date()
     } else {
+      console.log(e.key)
       lastPlusMinus = null
     }
   }
