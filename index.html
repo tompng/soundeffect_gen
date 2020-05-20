@@ -303,17 +303,43 @@ class Note {
     audio.play()
   }
   editorElement.onmousedown = e => {
-    if (e.target !== editorElement) return
+    if (e.target !== editorElement && e.target.className !== 'note-range') return
     if (focusNote) {
       focusNote.hideControls()
       focusNote = null
     } else {
-      const note = new Note(Math.floor(e.offsetX / XSIZE), 2, MAX_PITCH - Math.floor(e.offsetY / YSIZE), 1)
+      const offsetX = editorElement.offsetLeft
+      const offsetY = editorElement.offsetTop
+      const time1 = Math.floor((e.pageX - offsetX) / XSIZE)
+      const pitch = MAX_PITCH - Math.floor((e.pageY - offsetY) / YSIZE)
+      const note = new Note(time1, 1, pitch, 0)
       note.appendTo(editorElement)
+      note.hideControls()
       note.updatePosition()
+      note.startPlay()
       notes.push(note)
       focusNote = note
-      note.showControls()
+      const pageXWas = e.pageX
+      const pageYWas = e.pageY
+      const mousemove = e => {
+        const time2 = Math.floor((e.pageX - offsetX) / XSIZE)
+        const bandup = (MAX_PITCH - pitch) * YSIZE
+        const banddown = (MAX_PITCH - pitch + 1) * YSIZE
+        const y = e.pageY - offsetY
+        note.band = Math.round(Math.max(bandup - y, y - banddown, 0) / YSIZE * BandStep)
+        note.start = Math.max(0, Math.min(time1, time2))
+        note.length = Math.abs(time2 - time1) + 1
+        note.updated()
+      }
+      const mouseup = e => {
+        note.showControls()
+        note.stopPlay()
+        document.removeEventListener('mousemove', mousemove)
+        document.removeEventListener('mouseup', mouseup)
+      }
+      document.addEventListener('mousemove', mousemove)
+      document.addEventListener('mouseup', mouseup)
+      
       updateHash()
     }
   }
