@@ -34,6 +34,8 @@
   background: blue;
   opacity: 0.2;
   z-index: 1;
+  left: -100px;
+  top: -100px;
 }
 .note.focus {
   background: #444;
@@ -76,6 +78,27 @@
   border-radius: 2px;
   background: rgba(255, 0, 0, 0.2);
 }
+#dialog .backdrop {
+  z-index: 1000;
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.2);
+}
+#dialog .body {
+  z-index: 1001;
+  position: fixed;
+  left: 15%;
+  top: 10%;
+  width: 70%;
+  height: 80%;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow: auto;
+  background: white;
+}
 </style>
 <script>
 const XSIZE = 40
@@ -109,18 +132,18 @@ function updateHash() {
   ].join('_')).join('/')
   location.hash = data
 }
+function convertParameters(parameters) {
+  return parameters.map(({ start, length, pitch, band, peek, volume }) => ({
+    w: band / 24 || 0.001,
+    hz: 441 * Math.pow(2, (pitch - 69) / 12),
+    fadein: length * 441 * peek,
+    fadeout: length * 441,
+    delay: start * 441,
+    volume
+  }))
+}
 function createAudioSrc(parameters) {
-  const waveData = createWaveFromParameters(
-    parameters.map(({ start, length, pitch, band, peek, volume }) => ({
-      w: band / 24 || 0.001,
-      hz: 441 * Math.pow(2, (pitch - 69) / 12),
-      fadein: length * 441 * peek,
-      fadeout: length * 441,
-      delay: start * 441,
-      volume
-    }))
-  )
-  return waveToDataURL(waveData)
+  return waveToDataURL(createWaveFromParameters(convertParameters(parameters)))
 }
 
 class Note {
@@ -295,7 +318,14 @@ class Note {
 </script>
 <body>
 <button onclick="playAll()">play</button>
+<button onclick="clearAll()">clear</button>
+<button onclick="showExport()">export</button>
+<button onclick="showHelp()">help</button>
 <div class="editor"><div class='note-preview'></div></div>
+<div id="dialog" style="display: none;">
+  <div class="backdrop"></div>
+  <div class="body"></div>
+</div>
 <script>
   const editorElement = document.querySelector('.editor')
   const audio = new Audio()
@@ -310,6 +340,52 @@ class Note {
     audio.src = createAudioSrc(notes)
     audio.play()
   }
+
+  function showDialog(html) {
+    const dialog = document.querySelector('#dialog')
+    dialog.style.display = 'block'
+    dialog.querySelector('.backdrop').onclick = () => dialog.style.display = 'none'
+    const body = dialog.querySelector('.body')
+    body.innerHTML = html
+    return body
+  }
+
+  function showHelp() {
+    const css = 'display: inline-block; width: 160px;'
+    showDialog(`
+      <h1>helo</h1>
+      <p>
+        <b style="${css}">play all</b> space key<br>
+        <b style="${css}">delete note</b> backspace<br>
+        <b style="${css}">note.volume++</b> + key<br>
+        <b style="${css}">note.volume--</b> - key<br>
+      </p>
+    `)
+  }
+  function showExport() {
+    waveToDataURL
+    createWaveFromParameters
+    const parameters = convertParameters(notes)
+    const data = JSON.stringify(parameters).split('"').join('')
+    const code = [
+      `const parameters = ${data}`,
+      waveToDataURL.toString(),
+      createWaveFromParameters.toString(),
+      'const audio = new Audio()',
+      'audio.src = waveToDataURL(createWaveFromParameters(parameters))',
+      'audio.play()'
+    ].join('\n')
+    const dom = showDialog(`
+      <h1>export</h1>
+      <p>parameters</p>
+      <textarea readonly style="width:100%;height: 100px;"></textarea>
+      <p>full code</p>
+      <textarea readonly style="width:100%;height: 400px;"></textarea>
+    `)
+    const textareas = dom.querySelectorAll('textarea')
+    textareas[0].value = data
+    textareas[1].value = code
+  }
   editorElement.onmousedown = e => {
     if (e.target !== editorElement && e.target.className !== 'note-range' && e.target.className !== 'note-preview') return
     if (focusNote) {
@@ -319,8 +395,8 @@ class Note {
     } else {
       const offsetX = editorElement.offsetLeft
       const offsetY = editorElement.offsetTop
-      const time1 = Math.floor((e.pageX - offsetX) / XSIZE)
-      const pitch = MAX_PITCH - Math.floor((e.pageY - offsetY) / YSIZE)
+      const time1 = Math.max(0, Math.floor((e.pageX - offsetX) / XSIZE))
+      const pitch = Math.min(MAX_PITCH, MAX_PITCH - Math.floor((e.pageY - offsetY) / YSIZE))
       const note = new Note(time1, 1, pitch, 0)
       note.appendTo(editorElement)
       note.showControls()
@@ -349,7 +425,6 @@ class Note {
       }
       document.addEventListener('mousemove', mousemove)
       document.addEventListener('mouseup', mouseup)
-      
       updateHash()
     }
   }
@@ -357,6 +432,14 @@ class Note {
   const notePreview = document.querySelector('.note-preview')
   notePreview.style.width = XSIZE
   notePreview.style.height = YSIZE
+  function clearAll() {
+    if (!confirm('clear all?')) return
+    notes.forEach(note => note.remove())
+    notes = []
+    focusNote = null
+    notePreview.style.display = ''
+    updateHash()
+  }
   document.body.onmousemove = e => {
     const offsetX = editorElement.offsetLeft
     const offsetY = editorElement.offsetTop

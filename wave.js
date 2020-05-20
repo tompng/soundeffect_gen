@@ -50,15 +50,3 @@ function createWaveFromParameters(parameters) {
   waveData.forEach((_, i) => waveData[i] /= max)
   return waveData
 }
-
-const waveData = createWaveFromParameters([
-  { w: 2 / 24, hz: 441 * 1, fadein: 400, fadeout: 10000, delay: 0, volume: 1 },
-  { w: 4 / 24, hz: 441 * 1, fadein: 400, fadeout: 10000, delay: 0, volume: 1 },
-])
-// audio = new Audio()
-// audio.src = waveToDataURL(waveData)
-// audio.play()
-// document.onclick = () => {
-//   audio.currentTime = 0
-//   audio.play()
-// }
