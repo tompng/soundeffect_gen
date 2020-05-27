@@ -215,13 +215,13 @@ class Note {
       if (diff) this.updated()
     }
     up.moved = (state, x, y) => {
-      const band = Math.min(48, Math.max(0, state.band - Math.round(BandStep * y / YSIZE)))
+      const band = Math.min(96, Math.max(0, state.band - Math.round(BandStep * y / YSIZE)))
       if (this.band === band) return
       this.band = band
       this.updated()
     }
     down.moved = (state, x, y) => {
-      const band = Math.min(48, Math.max(0, state.band + Math.round(BandStep * y / YSIZE)))
+      const band = Math.min(96, Math.max(0, state.band + Math.round(BandStep * y / YSIZE)))
       if (this.band === band) return
       this.band = band
       this.updated()
