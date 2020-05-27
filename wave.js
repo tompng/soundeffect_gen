@@ -26,11 +26,14 @@ function createWaveFromParameters(parameters) {
     const ex = Math.exp(-w * hz / 44100 / 2)
     const ac = ex * Math.cos(th)
     const as = ex * Math.sin(th)
-    const bc = ex * ex * Math.cos(th)
-    const bs = ex * ex * Math.sin(th)
+    const bc = ex * ac
+    const bs = ex * as
+    const cc = ex * bc
+    const cs = ex * bs
     const scale = Math.sqrt(hz * w) * volume
     let ar = 0, ai = 0
     let br = 0, bi = 0
+    let cr = 0, ci = 0
     for(i = delay - 44100; i < waveData.length; i++) {
       const r = 2 * Math.random() - 1
       let tmp
@@ -40,9 +43,12 @@ function createWaveFromParameters(parameters) {
       tmp = br
       br = tmp * bc - bi * bs + r
       bi = bi * bc + tmp * bs
+      tmp = cr
+      cr = tmp * cc - ci * cs + r
+      ci = ci * cc + tmp * cs
       const j = i - delay
       if (j < 0) continue
-      waveData[i] += (fadein ? 1 - Math.exp(-j / fadein) : 1) * Math.exp(-j / fadeout) * (br - ar) * scale
+      waveData[i] += (fadein ? 1 - Math.exp(-j / fadein) : 1) * Math.exp(-j / fadeout) * (2 * br - ar - cr) * scale
     }
   })
   let max = 0;
